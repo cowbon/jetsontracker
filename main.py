@@ -7,6 +7,7 @@ import threading
 import tensorflow as tf
 import argparse
 import numpy as np
+import cameramanager
 
 from queue import Queue
 from threading import Thread
@@ -21,7 +22,6 @@ category_index = None
 recognition_model = ''
 NUM_CLASSES=90
 running = False
-gst = 'nvcamerasrc ! video/x-raw(memory:NVMM), width=(int)1920, height=(int)1080, format=(string)I420, framerate=(fraction)30/1  ! nvvidconv flip-method=2 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink'
 
 def get_local_path(model_path):
 	return 
@@ -100,11 +100,13 @@ def main(args):
 	if args.src:
 		image = cv2.imread(args.src)
 		outcome, _ = object_detection(image, graph, sess)
-		cv2.imwrite('cameratest.jpg', outcome)
+		cv2.imwrite('result_'+os.path.basename(args.src), outcome)
 	else:
 		# Run as a background thread 
 		# Will be refactored as a independent module to support multicamera
-		cap = cv2.VideoCapture(gst, cv2.CAP_GSTREAMER)
+		cm = cameramanager(args.config)
+		 
+		cap = cm.get_device(0)
 
 		if cap.isOpened() is False:
 			#TODO: Write bad news to log
@@ -121,6 +123,7 @@ def main(args):
 		while running:
 			image = cap.read()
 			in_queue.put(image)
+			outcome = out_queue.pop()
 			cv2.imshow('Object Detect Test', outcome)
 			if cv2.waitKey(1) & 0xFF == ord('q'):
 				running = False
@@ -136,7 +139,13 @@ if __name__ == '__main__':
 
 	parser.add_argument('--model',
 		type=str,
-		help='Path of the model',
+		help='Path to the model',
+		action='store'
+	)
+
+	parser.add_argument('--config',
+		type=str,
+		help='Path to configuration'
 		action='store'
 	)
 
